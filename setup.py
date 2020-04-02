@@ -6,7 +6,7 @@ from setuptools import find_packages, setup
 dependencies = ['click', 'boto3', 'ipdb', 'pyyaml']
 
 setup(
-    name='sealer',
+    name='kubernetes-secret-sealer',
     version='0.1.0',
     url='https://github.com/mgroeningEC/sealer',
     license='BSD',
@@ -21,7 +21,7 @@ setup(
     install_requires=dependencies,
     entry_points={
         'console_scripts': [
-            'sealer = sealer.cli:main',
+            'kubernetes-secret-sealer = sealer.cli:main',
         ],
     },
     classifiers=[

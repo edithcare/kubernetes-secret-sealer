@@ -121,12 +121,12 @@ def write_to_file(filename, output, sealed_json):
 
 
 @click.command()
-@click.option("-p", "--profile", help="set the AWS_PROFILE environment variable.")
+@click.option("-p", "--profile", help="set the AWS_PROFILE environment variable.(optional)")
 @click.option("-n", "--name", required=True, help="The name of the secret to export from the AWS Secrets Manager.")
-@click.option("--region", default="eu-central-1", help="The AWS Region to use (optional).")
+@click.option("--region", default="eu-central-1", help="The AWS Region to use (optional, default eu-central-1).")
 @click.option("-c", "--command", is_flag=True, help="only print kubectl command for creating secret.")
 @click.option("-f", "--filename",  help="the file to which to write the sealed secret, if not set, output is to stdout.")
-@click.option("-o", "--output", default="yaml", type=click.Choice(['json', 'yaml'], case_sensitive=False), help="the output format. select json or yaml.")
+@click.option("-o", "--output", default="yaml", type=click.Choice(['json', 'yaml'], case_sensitive=False), help="the output format. select json or yaml (optional, default yaml).")
 def main(profile, region, command, name, filename, output):
     """Simple tool, that fetches a secret from AWS Secret Manager and pipes it into a kubernetes sealed secret."""
     if profile:
