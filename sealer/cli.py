@@ -14,6 +14,16 @@ import sys
 
 
 def get_secret(secret_name, region):
+    """
+    fetch the secret out of the secrets manager
+
+    Arguments:
+        secret_name {String} -- The Name of the secret to fatch
+        region {String} -- the aws-region of the secrets manager
+
+    Returns:
+        String -- the string containing the secret
+    """
     secret_name = secret_name
     region_name = region
 
@@ -51,15 +61,70 @@ def get_secret(secret_name, region):
         else:
             decoded_binary_secret = base64.b64decode(
                 get_secret_value_response['SecretBinary'])
+            return None
 
-    # Your code goes here.
+
+
+def create_sealed_secret_json(kubctl_cmd):
+    """pipe the secret first through kubectl then through kubeseal
+
+    Arguments:
+        kubctl_cmd {[String]} -- An Array of strings which builds the kubectl command to create a secret
+
+    Returns:
+        json -- the json object containing the sealed secret
+    """
+    process = subprocess.run(
+        " ".join(kubctl_cmd).split(" "), capture_output=True)
+    if process.returncode is 0:
+        kubectl_output = process.stdout
+        json_output = json.loads(kubectl_output)
+        seal_process = subprocess.run(["kubeseal"], input=json.dumps(
+            json_output), capture_output=True, text=True)
+        seal_output = seal_process.stdout
+        sealed_json = json.loads(seal_output)
+    else:
+        print(process.stderr)
+    return sealed_json
+
+
+def write_to_stdout(output, sealed_json):
+    """write the 
+
+    Arguments:
+        output {String} -- the output format 
+        sealed_json {json} -- the json containing the sealed secret
+    """
+    if output == "yaml":
+        print(yaml.dump(sealed_json))
+    if output == "json":
+        print(json.dumps(sealed_json, sort_keys=True,
+                         indent=4, separators=(',', ': ')))
+
+
+def write_to_file(filename, output, sealed_json):
+    """writes the sealed secret to a file
+
+    Arguments:
+        filename {String} -- the filename of the sealed secret
+        output {String} -- the output format
+        sealed_json {json} -- the json containing the sealed secret
+    """
+    print("write to file "+filename)
+    f = open(filename, "w")
+    if output == "yaml":
+        f.write(yaml.dump(sealed_json))
+    if output == "json":
+        f.write(json.dumps(sealed_json, sort_keys=True,
+                           indent=4, separators=(',', ': ')))
+    f.close()
 
 
 @click.command()
-@click.option("-p","--profile", help="set the AWS_PROFILE environment variable.")
+@click.option("-p", "--profile", help="set the AWS_PROFILE environment variable.")
 @click.option("-n", "--name", required=True, help="The name of the secret to export from the AWS Secrets Manager.")
 @click.option("--region", default="eu-central-1", help="The AWS Region to use (optional).")
-@click.option("-c","--command", is_flag=True, help="only print kubectl command for creating secret.")
+@click.option("-c", "--command", is_flag=True, help="only print kubectl command for creating secret.")
 @click.option("-f", "--filename",  help="the file to which to write the sealed secret, if not set, output is to stdout.")
 @click.option("-o", "--output", default="yaml", type=click.Choice(['json', 'yaml'], case_sensitive=False), help="the output format. select json or yaml.")
 def main(profile, region, command, name, filename, output):
@@ -83,34 +148,16 @@ def main(profile, region, command, name, filename, output):
         print("Unexpected error:", sys.exc_info()[0])
         raise
     try:
-        process = subprocess.run(
-            " ".join(kubctl_cmd).split(" "), capture_output=True)
-        if process.returncode is 0:
-            kubectl_output = process.stdout
-            json_output = json.loads(kubectl_output)
-            seal_process = subprocess.run(["kubeseal"], input=json.dumps(
-                json_output), capture_output=True, text=True)
-            seal_output = seal_process.stdout
-            sealed_json = json.loads(seal_output)
-        else:
-            print(process.stderr)
+        sealed_json = create_sealed_secret_json(kubctl_cmd)
     except:
         print("Unexpected error:", sys.exc_info()[0])
         raise
     if filename:
-        print("write to file "+filename)
-        f=open(filename,"w")
-        if output == "yaml":
-            f.write(yaml.dump(sealed_json))
-        if output == "json":
-            f.write(json.dumps(sealed_json, sort_keys=True, indent=4, separators=(',', ': ')))
-        f.close()
-        
-    else:     
-        if output == "yaml":
-            print(yaml.dump(sealed_json))
-        if output == "json":
-            print(json.dumps(sealed_json, sort_keys=True, indent=4, separators=(',', ': ')))
+        write_to_file(filename, output, sealed_json)
+
+    else:
+        write_to_stdout(output, sealed_json)
+
 
 if __name__ == "__main__":
     main()
