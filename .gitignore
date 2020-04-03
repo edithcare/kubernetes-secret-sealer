@@ -6,3 +6,10 @@ build/
 
 .tox/
 .coverage
+
+.vscode
+.Python
+bin
+include
+lib
+pip-selfcheck.json

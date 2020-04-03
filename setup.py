@@ -3,16 +3,18 @@ get a secret from aws secrets manager and generate an kubernetes sealed secret
 """
 from setuptools import find_packages, setup
 
-dependencies = ['click', 'boto3', 'ipdb', 'pyyaml']
+dependencies = ['click', 'boto3', 'pyyaml']
+
+dev_dependencies = ['ipdb']
 
 setup(
     name='kubernetes-secret-sealer',
     version='0.1.0',
-    url='https://github.com/mgroeningEC/sealer',
+    url='https://github.com/edithcare/kubernetes-secret-sealer',
     license='BSD',
     author='Michael Groening',
     author_email='michael.groening@edit.care',
-    description='get a secret from aws secrets manager and generate an kubernetes sealed secret',
+    description='Get a secret from aws secrets manager and generate an kubernetes sealed secret',
     long_description=__doc__,
     packages=find_packages(exclude=['tests']),
     include_package_data=True,

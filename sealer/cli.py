@@ -74,13 +74,17 @@ def create_sealed_secret_json(kubctl_cmd):
     Returns:
         json -- the json object containing the sealed secret
     """
+
     process = subprocess.run(
         " ".join(kubctl_cmd).split(" "), capture_output=True)
+
     if process.returncode is 0:
         kubectl_output = process.stdout
         json_output = json.loads(kubectl_output)
+
         seal_process = subprocess.run(["kubeseal"], input=json.dumps(
             json_output), capture_output=True, text=True)
+
         seal_output = seal_process.stdout
         sealed_json = json.loads(seal_output)
     else:
@@ -112,6 +116,7 @@ def write_to_file(filename, output, sealed_json):
     """
     print("write to file "+filename)
     f = open(filename, "w")
+
     if output == "yaml":
         f.write(yaml.dump(sealed_json))
     if output == "json":
@@ -137,6 +142,7 @@ def main(profile, region, command, name, filename, output):
     kubctl_cmd.append(
         f"kubectl create secret generic {name} --dry-run -o json")
     sealed_json = ""
+
     try:
         json_secret = json.loads(secret)
         for i in json_secret:
