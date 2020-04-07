@@ -7,11 +7,11 @@ import subprocess
 import sys
 import yaml
 import boto3
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, ProfileNotFound
 import click
+import shutil
 
-
-def get_secret(secret_name, region):
+def get_secret(secret_name, region, profile):
     """
     fetch the secret out of the secrets manager
 
@@ -24,8 +24,14 @@ def get_secret(secret_name, region):
     """
     secret_name = secret_name
     region_name = region
+    profile_name = profile
     # Create a Secrets Manager client
-    session = boto3.session.Session()
+    try:
+        session = boto3.session.Session(profile_name=profile_name)
+    except ProfileNotFound as error:
+        print(error)
+        sys.exit(1)
+
     client = session.client(
         service_name='secretsmanager',
         region_name=region_name
@@ -132,7 +138,7 @@ def write_to_file(filename, output, sealed_json):
 
 
 @click.command()
-@click.option("-p", "--profile", help="set the AWS_PROFILE environment variable.(optional)")
+@click.option("-p", "--profile", envvar="AWS_PROFILE", help="set the environment variable.(optional)")
 @click.option("-n", "--name", required=True, help="The name of the secret to export from the AWS Secrets Manager.")
 @click.option("-kns", "--namespace", help="The namespace in which the sealed secret shall be created.")
 @click.option("--cert", help="The Path of the Key with which to encrypt the sealed secrets. ")
@@ -141,14 +147,17 @@ def write_to_file(filename, output, sealed_json):
 @click.option("-o", "--output", default="yaml", type=click.Choice(['json', 'yaml'], case_sensitive=False), help="the output format. select json or yaml (optional, default yaml).")
 def main(profile=None, name=None, namespace=None, cert=None, region=None, filename=None, output=None):
     """Simple tool, that fetches a secret from AWS Secret Manager and pipes it into a kubernetes sealed secret."""
-    if profile:
-        os.environ['AWS_PROFILE'] = profile
+    shutil.get_archive_formats()
+    for i in ["kubectl", "kubeseal"]:
+        if shutil.which(i) is None:
+            print (f"The necessary tool {i} cannot be found in your PATH. Please install {i} or make it available in your $PATH environment variable.")
+            sys.exit(1)
     if cert:
         if not os.path.isfile(cert):
             print("PEM-file not found. exiting")
             sys.exit(1)
     name = name
-    secret = get_secret(name, region)
+    secret = get_secret(name, region, profile)
     kubctl_cmd = []
     kubctl_cmd.append(
         f"kubectl create secret generic {name} --dry-run -o json")
