@@ -5,11 +5,35 @@ import json
 import os
 import subprocess
 import sys
+import shutil
 import yaml
 import boto3
 from botocore.exceptions import ClientError, ProfileNotFound
 import click
-import shutil
+
+
+LICENSE="""
+Copyright (c) 2020 Michael Gröning
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+
 
 def get_secret(secret_name, region, profile):
     """
@@ -32,13 +56,13 @@ def get_secret(secret_name, region, profile):
         print(error)
         sys.exit(1)
 
-    client = session.client(
+    aws_client = session.client(
         service_name='secretsmanager',
         region_name=region_name
     )
 
     try:
-        get_secret_value_response = client.get_secret_value(
+        response = aws_client.get_secret_value(
             SecretId=secret_name
         )
     except ClientError as error:
@@ -56,15 +80,12 @@ def get_secret(secret_name, region, profile):
             print("Access on secret not allowed. Set your AWS_PROFILE?")
             sys.exit(1)
     else:
-        # Decrypts secret using the associated KMS CMK.
-        # Depending on whether the secret is a string or binary, one of
-        # these fields will be populated.
-        if 'SecretString' in get_secret_value_response:
-            secret = get_secret_value_response['SecretString']
+        if 'SecretString' in response:
+            secret = response['SecretString']
             return secret
         else:
             decoded_binary_secret = base64.b64decode(
-                get_secret_value_response['SecretBinary'])
+                response['SecretBinary'])
             return None
 
 
@@ -126,7 +147,7 @@ def write_to_file(filename, output, sealed_json):
         output {String} -- the output format
         sealed_json {json} -- the json containing the sealed secret
     """
-    print("write to file "+filename)
+    print(f"write to file {filename}")
     secret_file = open(filename, "w")
 
     if output == "yaml":
@@ -150,7 +171,8 @@ def main(profile=None, name=None, namespace=None, cert=None, region=None, filena
     shutil.get_archive_formats()
     for i in ["kubectl", "kubeseal"]:
         if shutil.which(i) is None:
-            print (f"The necessary tool {i} cannot be found in your PATH. Please install {i} or make it available in your $PATH environment variable.")
+            print(
+                f"The necessary tool {i} cannot be found in your PATH. Please install {i} or make it available in your $PATH environment variable.")
             sys.exit(1)
     if cert:
         if not os.path.isfile(cert):

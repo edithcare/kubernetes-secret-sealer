@@ -71,6 +71,30 @@ Secrets are stored and only stored in the AWS Secretsmanager. This tools writes 
 ```kubernetes-secret-sealer -n supersecret -p dev -kns testk8snamespace --cert ./dev-cluster.pem -o yaml -f supersecret_sealedsecret.yaml```. 
 - Then you just have to apply the secret via kubectl apply: ```kubectl apply -f supersecret_sealedsecret.yaml```
 
+# Licensing:
+
+This Code is under the MIT-License. The Function get_secret is inspired by the code snippet in the AWS Secretsmanager console, and is by my best knowledge released under the Apache License.
+
+Copyright (c) 2020 Michael Gröning
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
 # TODO:
 - [x] check `FileNotFoundError: [Errno 2] No such file or directory: 'kubeseal': 'kubeseal'` => Docu & Check for kubeseal
  
