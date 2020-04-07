@@ -138,9 +138,9 @@ def write_to_file(filename, output, sealed_json):
 
 
 @click.command()
-@click.option("-p", "--profile", envvar="AWS_PROFILE", help="set the environment variable.(optional)")
+@click.option("-p", "--profile", envvar="AWS_PROFILE", help="set the Profile to use for the request. If AWS_PROFILE is set, the variable is read from there, but you can always override it.")
 @click.option("-n", "--name", required=True, help="The name of the secret to export from the AWS Secrets Manager.")
-@click.option("-kns", "--namespace", help="The namespace in which the sealed secret shall be created.")
+@click.option("-kns", "--namespace", help="The namespace in which the sealed secret shall be created. If the namespace is set in the kubernetes config, this is used as default, otherwise the default namespace is used.")
 @click.option("--cert", help="The Path of the Key with which to encrypt the sealed secrets. ")
 @click.option("--region", default="eu-central-1", help="The AWS Region to use (optional, default eu-central-1).")
 @click.option("-f", "--filename", help="the file to which to write the sealed secret, if not set, output is to stdout.")
@@ -158,6 +158,9 @@ def main(profile=None, name=None, namespace=None, cert=None, region=None, filena
             sys.exit(1)
     name = name
     secret = get_secret(name, region, profile)
+    if secret is None:
+        print("Query of Secretsmanager returns no result. Did you use the same 2FA Code twice? Please wait until a new one is generated.")
+        sys.exit(1)
     kubctl_cmd = []
     kubctl_cmd.append(
         f"kubectl create secret generic {name} --dry-run -o json")
