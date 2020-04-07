@@ -24,9 +24,9 @@ To use it:
 
 
 TODO:
- [ ] check `FileNotFoundError: [Errno 2] No such file or directory: 'kubeseal': 'kubeseal'` => Docu & Check for kubeseal
+- [ ] check `FileNotFoundError: [Errno 2] No such file or directory: 'kubeseal': 'kubeseal'` => Docu & Check for kubeseal
  
- [ ] check MFA error
+- [ ] check MFA error
 ```sh
 MFA: ....
 
@@ -50,11 +50,11 @@ TypeError: the JSON object must be str, bytes or bytearray, not NoneType
 
 ```
  
- [ ] Option for PEM file
- [ ] Namespace Option default per ENV
- [ ] Check existing passwords and export to separate namespace k8s
- [ ] Create git repo for new DEV cluster according Syncier ArgoCD conventions
- [ ] MIT Lizens => OpenSource
- [ ] Test
- [ ] CI/CD GitHub Actions / Ggf. CircleCI + [Packages] => kostenfrei für OpenSource?
+- [ ] Option for PEM file
+- [ ] Namespace Option default per ENV
+- [ ] Check existing passwords and export to separate namespace k8s
+- [ ] Create git repo for new DEV cluster according Syncier ArgoCD conventions
+- [ ] MIT Lizens => OpenSource
+- [ ] Test
+- [ ] CI/CD GitHub Actions / Ggf. CircleCI + [Packages] => kostenfrei für OpenSource?
  
