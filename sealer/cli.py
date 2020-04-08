@@ -12,32 +12,11 @@ from botocore.exceptions import ClientError, ProfileNotFound
 import click
 
 
-LICENSE="""
-Copyright (c) 2020 Michael Gröning
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-"""
-
-
 def get_secret(secret_name, region, profile):
     """
     fetch the secret out of the secrets manager
+
+    The Function get_secret is inspired by the code snippet in the AWS Secretsmanager console, which is by my best knowledge released under the Apache License.
 
     Arguments:
         secret_name {String} -- The Name of the secret to fatch
@@ -162,11 +141,12 @@ def write_to_file(filename, output, sealed_json):
 @click.option("-p", "--profile", envvar="AWS_PROFILE", help="set the Profile to use for the request. If AWS_PROFILE is set, the variable is read from there, but you can always override it.")
 @click.option("-n", "--name", required=True, help="The name of the secret to export from the AWS Secrets Manager.")
 @click.option("-kns", "--namespace", help="The namespace in which the sealed secret shall be created. If the namespace is set in the kubernetes config, this is used as default, otherwise the default namespace is used.")
+@click.option("-kn", "--sealedsecretname", help="The name in which the sealed secret shall be created. If the name is not set the name is equal to the one set in the -n Option.")
 @click.option("--cert", help="The Path of the Key with which to encrypt the sealed secrets. ")
 @click.option("--region", default="eu-central-1", help="The AWS Region to use (optional, default eu-central-1).")
 @click.option("-f", "--filename", help="the file to which to write the sealed secret, if not set, output is to stdout.")
 @click.option("-o", "--output", default="yaml", type=click.Choice(['json', 'yaml'], case_sensitive=False), help="the output format. select json or yaml (optional, default yaml).")
-def main(profile=None, name=None, namespace=None, cert=None, region=None, filename=None, output=None):
+def main(profile=None, name=None, namespace=None, cert=None, region=None, filename=None, output=None, sealedsecretname=None):
     """Simple tool, that fetches a secret from AWS Secret Manager and pipes it into a kubernetes sealed secret."""
     shutil.get_archive_formats()
     for i in ["kubectl", "kubeseal"]:
@@ -184,7 +164,11 @@ def main(profile=None, name=None, namespace=None, cert=None, region=None, filena
         print("Query of Secretsmanager returns no result. Did you use the same 2FA Code twice? Please wait until a new one is generated.")
         sys.exit(1)
     kubctl_cmd = []
-    kubctl_cmd.append(
+    if sealedsecretname:
+        kubctl_cmd.append(
+            f"kubectl create secret generic {sealedsecretname} --dry-run -o json")
+    else:
+        kubctl_cmd.append(
         f"kubectl create secret generic {name} --dry-run -o json")
     sealed_json = ""
 
