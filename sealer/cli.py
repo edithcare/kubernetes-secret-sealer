@@ -8,7 +8,7 @@ import sys
 import shutil
 import yaml
 import boto3
-from botocore.exceptions import ClientError, ProfileNotFound
+from botocore.exceptions import ClientError, ProfileNotFound, ParamValidationError
 import click
 
 
@@ -58,6 +58,11 @@ def get_secret(secret_name, region, profile):
         elif error.response['Error']['Code'] == 'AccessDeniedException':
             print("Access on secret not allowed. Set your AWS_PROFILE?")
             sys.exit(1)
+    except ParamValidationError as error:
+        print(error)
+        print("MFA Token could not be validated.")
+        sys.exit(1)
+
     else:
         if 'SecretString' in response:
             secret = response['SecretString']
