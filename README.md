@@ -1,5 +1,7 @@
 # kubernetes-secret-sealer
 
+![Python application](https://github.com/edithcare/kubernetes-secret-sealer/workflows/Python%20application/badge.svg)
+
 Get a secret from aws secrets manager and generate an kubernetes sealed secret
 
 
