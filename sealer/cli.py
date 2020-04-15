@@ -1,21 +1,22 @@
-# Use this code snippet in your app.
-# If you need more information about configurations or implementing the sample code, visit the AWS docs:
-# https://aws.amazon.com/developers/getting-started/python/
 
-import click
-import boto3
+
 import base64
-from botocore.exceptions import ClientError
 import json
 import os
 import subprocess
-import yaml
 import sys
+import shutil
+import yaml
+import boto3
+from botocore.exceptions import ClientError, ProfileNotFound, ParamValidationError
+import click
 
 
-def get_secret(secret_name, region):
+def get_secret(secret_name, region, profile):
     """
     fetch the secret out of the secrets manager
+
+    The Function get_secret is inspired by the code snippet in the AWS Secretsmanager console, which is by my best knowledge released under the Apache License.
 
     Arguments:
         secret_name {String} -- The Name of the secret to fatch
@@ -26,73 +27,93 @@ def get_secret(secret_name, region):
     """
     secret_name = secret_name
     region_name = region
-
+    profile_name = profile
     # Create a Secrets Manager client
-    session = boto3.session.Session()
-    client = session.client(
+    try:
+        session = boto3.session.Session(profile_name=profile_name)
+    except ProfileNotFound as error:
+        print(error)
+        sys.exit(1)
+
+    aws_client = session.client(
         service_name='secretsmanager',
         region_name=region_name
     )
 
     try:
-        get_secret_value_response = client.get_secret_value(
+        response = aws_client.get_secret_value(
             SecretId=secret_name
         )
-    except ClientError as e:
-        if e.response['Error']['Code'] == 'DecryptionFailureException':
-            raise e
-        elif e.response['Error']['Code'] == 'InternalServiceErrorException':
-            raise e
-        elif e.response['Error']['Code'] == 'InvalidParameterException':
-            raise e
-        elif e.response['Error']['Code'] == 'InvalidRequestException':
-            raise e
-        elif e.response['Error']['Code'] == 'ResourceNotFoundException':
-            raise e
-        elif e.response['Error']['Code'] == 'AccessDeniedException':
-            print("Access on secret not allowed. did you set your AWS_PROFILE?")
-            sys.exit()
+    except ClientError as error:
+        if error.response['Error']['Code'] == 'DecryptionFailureException':
+            raise error
+        elif error.response['Error']['Code'] == 'InternalServiceErrorException':
+            raise error
+        elif error.response['Error']['Code'] == 'InvalidParameterException':
+            raise error
+        elif error.response['Error']['Code'] == 'InvalidRequestException':
+            raise error
+        elif error.response['Error']['Code'] == 'ResourceNotFoundException':
+            raise error
+        elif error.response['Error']['Code'] == 'AccessDeniedException':
+            print("Access on secret not allowed. Set your AWS_PROFILE?")
+            sys.exit(1)
+    except ParamValidationError as error:
+        print(error)
+        print("MFA Token could not be validated.")
+        sys.exit(1)
+
     else:
-        # Decrypts secret using the associated KMS CMK.
-        # Depending on whether the secret is a string or binary, one of these fields will be populated.
-        if 'SecretString' in get_secret_value_response:
-            secret = get_secret_value_response['SecretString']
+        if 'SecretString' in response:
+            secret = response['SecretString']
             return secret
         else:
             decoded_binary_secret = base64.b64decode(
-                get_secret_value_response['SecretBinary'])
+                response['SecretBinary'])
             return None
 
 
-
-def create_sealed_secret_json(kubctl_cmd):
+def create_sealed_secret_json(kubctl_cmd, certfile, namespace):
     """pipe the secret first through kubectl then through kubeseal
 
     Arguments:
-        kubctl_cmd {[String]} -- An Array of strings which builds the kubectl command to create a secret
+        kubctl_cmd {[String]} -- An Array of strings which builds the kubectl
+                                 command to create a secret
+        certfile {String} -- a path to a cert with which to encrypt the file
+        namespace {String} -- the namespace in which to encrypt the secret
 
     Returns:
         json -- the json object containing the sealed secret
     """
+
+    kubeseal_command = ["kubeseal"]
+    if certfile:
+        kubeseal_command.append(f"--cert {certfile}")
+    if namespace:
+        kubeseal_command.append(f"--namespace {namespace}")
     process = subprocess.run(
         " ".join(kubctl_cmd).split(" "), capture_output=True)
-    if process.returncode is 0:
+
+    if process.returncode == 0:
         kubectl_output = process.stdout
         json_output = json.loads(kubectl_output)
-        seal_process = subprocess.run(["kubeseal"], input=json.dumps(
-            json_output), capture_output=True, text=True)
-        seal_output = seal_process.stdout
-        sealed_json = json.loads(seal_output)
+        seal_process = subprocess.run(" ".join(kubeseal_command).split(
+            " "), input=json.dumps(json_output), capture_output=True, text=True)
+        if seal_process.returncode == 0:
+            seal_output = seal_process.stdout
+            sealed_json = json.loads(seal_output)
+        else:
+            print(seal_process.stderr)
     else:
         print(process.stderr)
     return sealed_json
 
 
 def write_to_stdout(output, sealed_json):
-    """write the 
+    """write the
 
     Arguments:
-        output {String} -- the output format 
+        output {String} -- the output format
         sealed_json {json} -- the json containing the sealed secret
     """
     if output == "yaml":
@@ -110,45 +131,62 @@ def write_to_file(filename, output, sealed_json):
         output {String} -- the output format
         sealed_json {json} -- the json containing the sealed secret
     """
-    print("write to file "+filename)
-    f = open(filename, "w")
+    print(f"write to file {filename}")
+    secret_file = open(filename, "w")
+
     if output == "yaml":
-        f.write(yaml.dump(sealed_json))
+        secret_file.write(yaml.dump(sealed_json))
     if output == "json":
-        f.write(json.dumps(sealed_json, sort_keys=True,
-                           indent=4, separators=(',', ': ')))
-    f.close()
+        secret_file.write(json.dumps(sealed_json, sort_keys=True,
+                                     indent=4, separators=(',', ': ')))
+    secret_file.close()
 
 
 @click.command()
-@click.option("-p", "--profile", help="set the AWS_PROFILE environment variable.(optional)")
+@click.option("-p", "--profile", envvar="AWS_PROFILE", help="set the Profile to use for the request. If AWS_PROFILE is set, the variable is read from there, but you can always override it.")
 @click.option("-n", "--name", required=True, help="The name of the secret to export from the AWS Secrets Manager.")
+@click.option("-kns", "--namespace", help="The namespace in which the sealed secret shall be created. If the namespace is set in the kubernetes config, this is used as default, otherwise the default namespace is used.")
+@click.option("-kn", "--sealedsecretname", help="The name in which the sealed secret shall be created. If the name is not set the name is equal to the one set in the -n Option.")
+@click.option("--cert", help="The Path of the Key with which to encrypt the sealed secrets. ")
 @click.option("--region", default="eu-central-1", help="The AWS Region to use (optional, default eu-central-1).")
-@click.option("-c", "--command", is_flag=True, help="only print kubectl command for creating secret.")
-@click.option("-f", "--filename",  help="the file to which to write the sealed secret, if not set, output is to stdout.")
+@click.option("-f", "--filename", help="the file to which to write the sealed secret, if not set, output is to stdout.")
 @click.option("-o", "--output", default="yaml", type=click.Choice(['json', 'yaml'], case_sensitive=False), help="the output format. select json or yaml (optional, default yaml).")
-def main(profile, region, command, name, filename, output):
+def main(profile=None, name=None, namespace=None, cert=None, region=None, filename=None, output=None, sealedsecretname=None):
     """Simple tool, that fetches a secret from AWS Secret Manager and pipes it into a kubernetes sealed secret."""
-    if profile:
-        os.environ['AWS_PROFILE'] = profile
+    shutil.get_archive_formats()
+    for i in ["kubectl", "kubeseal"]:
+        if shutil.which(i) is None:
+            print(
+                f"The necessary tool {i} cannot be found in your PATH. Please install {i} or make it available in your $PATH environment variable.")
+            sys.exit(1)
+    if cert:
+        if not os.path.isfile(cert):
+            print("PEM-file not found. exiting")
+            sys.exit(1)
     name = name
-    secret = get_secret(name, region)
+    secret = get_secret(name, region, profile)
+    if secret is None:
+        print("Query of Secretsmanager returns no result. Did you use the same 2FA Code twice? Please wait until a new one is generated.")
+        sys.exit(1)
     kubctl_cmd = []
-    kubctl_cmd.append(
+    if sealedsecretname:
+        kubctl_cmd.append(
+            f"kubectl create secret generic {sealedsecretname} --dry-run -o json")
+    else:
+        kubctl_cmd.append(
         f"kubectl create secret generic {name} --dry-run -o json")
     sealed_json = ""
+
     try:
         json_secret = json.loads(secret)
         for i in json_secret:
             kubctl_cmd.append(f"--from-literal={i}={json_secret[i]}")
-        if command:
-            print(" ".join(kubctl_cmd))
-            return
     except:
         print("Unexpected error:", sys.exc_info()[0])
         raise
     try:
-        sealed_json = create_sealed_secret_json(kubctl_cmd)
+        sealed_json = create_sealed_secret_json(
+            kubctl_cmd, cert, namespace)
     except:
         print("Unexpected error:", sys.exc_info()[0])
         raise
