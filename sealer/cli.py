@@ -112,7 +112,7 @@ def create_sealed_secret_json(kubctl_cmd, certfile, namespace, base64keys):
 
 
 def write_to_stdout(output, sealed_json):
-    """write the
+    """write the sealed secret to stdout.
 
     Arguments:
         output {String} -- the output format
@@ -126,7 +126,7 @@ def write_to_stdout(output, sealed_json):
 
 
 def write_to_file(filename, output, sealed_json):
-    """writes the sealed secret to a file
+    """writes the sealed secret to a file.
 
     Arguments:
         filename {String} -- the filename of the sealed secret
@@ -148,8 +148,8 @@ def keep_keys(json_secret, keynames):
     """keep only the keys that are listed in keynames and discard any other fetched from the AWS Secretsman
 
     Arguments:
-        json_secret {[type]} -- [description]
-        keynames {[type]} -- [description]
+        json_secret {json} -- the secret in json encoded form
+        keynames {[string]} -- the list of keys to keep
     """
     keys_to_remove = [
         x for x in json_secret.keys() if x not in keynames.split(",")]
@@ -161,11 +161,16 @@ def keep_keys(json_secret, keynames):
 
 
 def transform_key(json_secret, transformkey):
-    """[summary]
+    """rename a key to a another specified name
 
     Arguments:
-        json_secret {[type]} -- [description]
-        transformkey {[type]} -- [description]
+        json_secret {json} -- the secret in json encoded form
+        transformkey {string} -- a comma separated tuple of two strings with the first
+                                 one existant in the json, and the second the new name
+                                 Example:
+
+                                 json_secret:{'a': 'b'} is transformed by transformkey "a,x"
+                                 to {'x': 'b'}
     """
     if len(json_secret) != 1:
         print("you can only rename secrets with one key/value pair")
@@ -184,11 +189,11 @@ def transform_key(json_secret, transformkey):
 
 
 def base_64(json_output, base64keys):
-    """[summary]
+    """if a value to a given key is already B64 encoded, do not encode again.
 
     Arguments:
-        json_output {[type]} -- [description]
-        base64 {[type]} -- [description]
+        json_output {json} -- the secret as a json encoded string
+        base64 {string} -- the key that will be decoded
     """
     keys_list = base64keys.split(",")
     for i in keys_list:
