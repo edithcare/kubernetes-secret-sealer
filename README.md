@@ -64,18 +64,27 @@ Options:
                                 (optional, default yaml).
 
   -k, --keepkeys TEXT           if a secret has multiple key-value-pairs, keep
-                                et only the ones listed in this commaseparated
-                                list
+                                only the ones listed in this commaseparated
+                                list.
 
   -t, --transformkey TEXT       transforms the key before the comma to the
                                 name behind it
+                                Example:
+                                -t foo,bar will change a key 'foo' to 'bar',
+                                but will leave the referenced value intact.
 
   -b, --base64keys TEXT         if the data in this comma separated list of
                                 keys is already base64 decoded deploy the
                                 value directly
+                                Example:
+                                if a key has an already encoded value in the
+                                secrets manager, it will not encode the value
+                                again when create the sealed secret.
 
   --raw TEXT                    dont fetch a secret from AWS but actually get
-                                a json directly from a commandline parameter
+                                a json directly from a commandline parameter.
+                                If you have a sealed secret from another source,
+                                you can directly create a sealed secret from it.
 
   --help                        Show this message and exit.
 
@@ -85,7 +94,7 @@ Options:
 ## Handling of secrets and workflow.
 
 Secrets are stored and only stored in the AWS Secretsmanager. This tools writes no unencrypted secrets to the filesystem. So the workflow for using this tool is, to 
-- migrate your secrets into AWS Secretsmanager. Use the names the Secret will use in the kubernetes services later. This is vital, because the tool gives you no posibility to change name of sealed secrets later on.
+- migrate your secrets into AWS Secretsmanager. It is advised, to use the names and semantics the Secret will use in the kubernetes services later.
 - create a sealed secret yaml by using the tool. Example:
 ```kubernetes-secret-sealer -n supersecret -p dev -kns testk8snamespace --cert ./dev-cluster.pem -o yaml -f supersecret_sealedsecret.yaml```. 
 - Then you just have to apply the secret via kubectl apply: ```kubectl apply -f supersecret_sealedsecret.yaml```
