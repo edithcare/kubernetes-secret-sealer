@@ -3,7 +3,7 @@ get a secret from aws secrets manager and generate an kubernetes sealed secret
 """
 from setuptools import find_packages, setup
 
-dependencies = ['click', 'boto3', 'pyyaml', 'ipdb']
+dependencies = ['click', 'boto3', 'pyyaml']
 
 dev_dependencies = ['ipdb']
 
