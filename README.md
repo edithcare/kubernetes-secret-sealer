@@ -37,38 +37,66 @@ Usage: kubernetes-secret-sealer [OPTIONS]
   into a kubernetes sealed secret.
 
 Options:
-  -p, --profile TEXT        set the Profile to use for the request. If
-                            AWS_PROFILE is set, the variable is read from
-                            there, but you can always override it.
+  -p, --profile TEXT            set the Profile to use for the request. If
+                                AWS_PROFILE is set, the variable is read from
+                                there, but you can always override it.
 
-  -n, --name TEXT           The name of the secret to export from the AWS
-                            Secrets Manager.  [required]
+  -n, --name TEXT               The name of the secret to export from the AWS
+                                Secrets Manager.  [required]
 
-  -kns, --namespace TEXT    The namespace in which the sealed secret shall be
-                            created. If the namespace is set in the kubernetes
-                            config, this is used as default, otherwise the
-                            default namespace is used.
+  -kns, --namespace TEXT        The namespace in which the sealed secret shall
+                                be created. If the namespace is set in the
+                                kubernetes config, this is used as default,
+                                otherwise the default namespace is used.
 
-  --cert TEXT               The Path of the Key with which to encrypt the
-                            sealed secrets.
+  -kn, --sealedsecretname TEXT  The name in which the sealed secret shall be
+                                created. If the name is not set the name is
+                                equal to the one set in the -n Option.
 
-  --region TEXT             The AWS Region to use (optional, default eu-
-                            central-1).
+  --cert TEXT                   The Path of the Key with which to encrypt the
+                                sealed secrets.
 
-  -f, --filename TEXT       the file to which to write the sealed secret, if
-                            not set, output is to stdout.
+  --region TEXT                 The AWS Region to use (optional, default eu-
+                                central-1).
 
-  -o, --output [json|yaml]  the output format. select json or yaml (optional,
-                            default yaml).
+  -f, --filename TEXT           the file to which to write the sealed secret,
+                                if not set, output is to stdout.
 
-  --help                    Show this message and exit.
+  -o, --output [json|yaml]      the output format. select json or yaml
+                                (optional, default yaml).
+
+  -k, --keepkeys TEXT           if a secret has multiple key-value-pairs, keep
+                                only the ones listed in this commaseparated
+                                list.
+
+  -t, --transformkey TEXT       transforms the key before the comma to the
+                                name behind it
+                                Example:
+                                -t foo,bar will change a key 'foo' to 'bar',
+                                but will leave the referenced value intact.
+
+  -b, --base64keys TEXT         if the data in this comma separated list of
+                                keys is already base64 decoded deploy the
+                                value directly
+                                Example:
+                                if a key has an already encoded value in the
+                                secrets manager, it will not encode the value
+                                again when create the sealed secret.
+
+  --raw TEXT                    dont fetch a secret from AWS but actually get
+                                a json directly from a commandline parameter.
+                                If you have a sealed secret from another source,
+                                you can directly create a sealed secret from it.
+
+  --help                        Show this message and exit.
+
 ```
 
 
 ## Handling of secrets and workflow.
 
 Secrets are stored and only stored in the AWS Secretsmanager. This tools writes no unencrypted secrets to the filesystem. So the workflow for using this tool is, to 
-- migrate your secrets into AWS Secretsmanager. Use the names the Secret will use in the kubernetes services later. This is vital, because the tool gives you no posibility to change name of sealed secrets later on.
+- migrate your secrets into AWS Secretsmanager. It is advised, to use the names and semantics the Secret will use in the kubernetes services later.
 - create a sealed secret yaml by using the tool. Example:
 ```kubernetes-secret-sealer -n supersecret -p dev -kns testk8snamespace --cert ./dev-cluster.pem -o yaml -f supersecret_sealedsecret.yaml```. 
 - Then you just have to apply the secret via kubectl apply: ```kubectl apply -f supersecret_sealedsecret.yaml```

@@ -73,7 +73,7 @@ def get_secret(secret_name, region, profile):
             return None
 
 
-def create_sealed_secret_json(kubctl_cmd, certfile, namespace):
+def create_sealed_secret_json(kubctl_cmd, certfile, namespace, base64keys):
     """pipe the secret first through kubectl then through kubeseal
 
     Arguments:
@@ -97,6 +97,8 @@ def create_sealed_secret_json(kubctl_cmd, certfile, namespace):
     if process.returncode == 0:
         kubectl_output = process.stdout
         json_output = json.loads(kubectl_output)
+        if base64keys is not None:
+            base_64(json_output, base64keys)
         seal_process = subprocess.run(" ".join(kubeseal_command).split(
             " "), input=json.dumps(json_output), capture_output=True, text=True)
         if seal_process.returncode == 0:
@@ -110,7 +112,7 @@ def create_sealed_secret_json(kubctl_cmd, certfile, namespace):
 
 
 def write_to_stdout(output, sealed_json):
-    """write the
+    """write the sealed secret to stdout.
 
     Arguments:
         output {String} -- the output format
@@ -124,7 +126,7 @@ def write_to_stdout(output, sealed_json):
 
 
 def write_to_file(filename, output, sealed_json):
-    """writes the sealed secret to a file
+    """writes the sealed secret to a file.
 
     Arguments:
         filename {String} -- the filename of the sealed secret
@@ -142,6 +144,70 @@ def write_to_file(filename, output, sealed_json):
     secret_file.close()
 
 
+def keep_keys(json_secret, keynames):
+    """keep only the keys that are listed in keynames and discard any other fetched from the AWS Secretsman
+
+    Arguments:
+        json_secret {json} -- the secret in json encoded form
+        keynames {[string]} -- the list of keys to keep
+    """
+    keys_to_remove = [
+        x for x in json_secret.keys() if x not in keynames.split(",")]
+
+    for i in keys_to_remove:
+        json_secret.pop(i)
+
+    if len(json_secret) == 0:
+        print("no secrets left to upload. exiting.")
+        sys.exit(1)
+
+
+def transform_key(json_secret, transformkey):
+    """rename a key to a another specified name
+
+    Arguments:
+        json_secret {json} -- the secret in json encoded form
+        transformkey {string} -- a comma separated tuple of two strings with the first
+                                 one existant in the json, and the second the new name
+                                 Example:
+
+                                 json_secret:{'a': 'b'} is transformed by transformkey "a,x"
+                                 to {'x': 'b'}
+    """
+    if len(json_secret) != 1:
+        print("you can only rename secrets with one key/value pair")
+        sys.exit(1)
+    else:
+        transformkey_list = transformkey.split(",")
+        if len(transformkey_list) != 2:
+            print("please provide exactly two keynames!")
+            sys.exit(1)
+        else:
+            if transformkey_list[0] in json_secret.keys():
+                value = json_secret.pop(transformkey_list[0])
+                json_secret[transformkey_list[1]] = value
+            else:
+                print("key is not in secret. exiting!")
+
+
+def base_64(json_output, base64keys):
+    """if a value to a given key is already B64 encoded, do not encode again.
+
+    Arguments:
+        json_output {json} -- the secret as a json encoded string
+        base64 {string} -- the key that will be decoded
+    """
+    keys_list = base64keys.split(",")
+    for i in keys_list:
+        if i not in json_output["data"].keys():
+            print("key is not in secret. exiting")
+            sys.exit(1)
+        else:
+            value = json_output["data"].pop(i)
+            decoded = base64.b64decode(value)
+            json_output["data"][i] = decoded.decode("utf-8")
+
+
 @click.command()
 @click.option("-p", "--profile", envvar="AWS_PROFILE", help="set the Profile to use for the request. If AWS_PROFILE is set, the variable is read from there, but you can always override it.")
 @click.option("-n", "--name", required=True, help="The name of the secret to export from the AWS Secrets Manager.")
@@ -151,7 +217,11 @@ def write_to_file(filename, output, sealed_json):
 @click.option("--region", default="eu-central-1", help="The AWS Region to use (optional, default eu-central-1).")
 @click.option("-f", "--filename", help="the file to which to write the sealed secret, if not set, output is to stdout.")
 @click.option("-o", "--output", default="yaml", type=click.Choice(['json', 'yaml'], case_sensitive=False), help="the output format. select json or yaml (optional, default yaml).")
-def main(profile=None, name=None, namespace=None, cert=None, region=None, filename=None, output=None, sealedsecretname=None):
+@click.option("-k", "--keepkeys", help="if a secret has multiple key-value-pairs, keep et only the ones listed in this commaseparated list")
+@click.option("-t", "--transformkey", help="transforms the key before the comma to the name behind it")
+@click.option("-b", "--base64keys", help="if the data in this comma separated list of keys is already base64 decoded deploy the value directly")
+@click.option("--raw", help="dont fetch a secret from AWS but actually get a json directly from a file")
+def main(profile=None, name=None, namespace=None, cert=None, region=None, filename=None, output=None, sealedsecretname=None, keepkeys=None, transformkey=None, base64keys=None, raw=None):
     """Simple tool, that fetches a secret from AWS Secret Manager and pipes it into a kubernetes sealed secret."""
     shutil.get_archive_formats()
     for i in ["kubectl", "kubeseal"]:
@@ -164,21 +234,39 @@ def main(profile=None, name=None, namespace=None, cert=None, region=None, filena
             print("PEM-file not found. exiting")
             sys.exit(1)
     name = name
-    secret = get_secret(name, region, profile)
+    if raw is None:
+        secret = get_secret(name, region, profile)
+    else:
+        try:
+            json.loads(raw)
+        except:
+            print("Unexpected error:", sys.exc_info()[0])
+            raise
+
+        secret = raw
+
     if secret is None:
         print("Query of Secretsmanager returns no result. Did you use the same 2FA Code twice? Please wait until a new one is generated.")
         sys.exit(1)
+
     kubctl_cmd = []
     if sealedsecretname:
         kubctl_cmd.append(
             f"kubectl create secret generic {sealedsecretname} --dry-run -o json")
     else:
         kubctl_cmd.append(
-        f"kubectl create secret generic {name} --dry-run -o json")
+            f"kubectl create secret generic {name} --dry-run -o json")
     sealed_json = ""
 
     try:
         json_secret = json.loads(secret)
+
+        if keepkeys is not None:
+            keep_keys(json_secret, keepkeys)
+
+        if transformkey is not None:
+            transform_key(json_secret, transformkey)
+
         for i in json_secret:
             kubctl_cmd.append(f"--from-literal={i}={json_secret[i]}")
     except:
@@ -186,7 +274,7 @@ def main(profile=None, name=None, namespace=None, cert=None, region=None, filena
         raise
     try:
         sealed_json = create_sealed_secret_json(
-            kubctl_cmd, cert, namespace)
+            kubctl_cmd, cert, namespace, base64keys)
     except:
         print("Unexpected error:", sys.exc_info()[0])
         raise
