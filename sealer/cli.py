@@ -153,8 +153,10 @@ def keep_keys(json_secret, keynames):
     """
     keys_to_remove = [
         x for x in json_secret.keys() if x not in keynames.split(",")]
+
     for i in keys_to_remove:
         json_secret.pop(i)
+
     if len(json_secret) == 0:
         print("no secrets left to upload. exiting.")
         sys.exit(1)
