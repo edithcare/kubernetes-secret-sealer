@@ -73,7 +73,7 @@ def get_secret(secret_name, region, profile):
             return None
 
 
-def create_sealed_secret_json(kubctl_cmd, certfile, namespace, base64keys):
+def create_sealed_secret_json(kubctl_cmd, certfile, namespace, base64keys, templatetype):
     """pipe the secret first through kubectl then through kubeseal
 
     Arguments:
@@ -104,6 +104,10 @@ def create_sealed_secret_json(kubctl_cmd, certfile, namespace, base64keys):
         if seal_process.returncode == 0:
             seal_output = seal_process.stdout
             sealed_json = json.loads(seal_output)
+
+            if templatetype is not None:
+                sealed_json["spec"]['template']['type'] = templatetype
+
         else:
             print(seal_process.stderr)
     else:
@@ -221,7 +225,8 @@ def base_64(json_output, base64keys):
 @click.option("-t", "--transformkey", help="transforms the key before the comma to the name behind it")
 @click.option("-b", "--base64keys", help="if the data in this comma separated list of keys is already base64 decoded deploy the value directly")
 @click.option("--raw", help="dont fetch a secret from AWS but actually get a json directly from a file")
-def main(profile=None, name=None, namespace=None, cert=None, region=None, filename=None, output=None, sealedsecretname=None, keepkeys=None, transformkey=None, base64keys=None, raw=None):
+@click.option("-tt", "--templatetype", help="add template type to the output file")
+def main(profile=None, name=None, namespace=None, cert=None, region=None, filename=None, output=None, sealedsecretname=None, keepkeys=None, transformkey=None, base64keys=None, raw=None, templatetype=None):
     """Simple tool, that fetches a secret from AWS Secret Manager and pipes it into a kubernetes sealed secret."""
     shutil.get_archive_formats()
     for i in ["kubectl", "kubeseal"]:
@@ -274,7 +279,7 @@ def main(profile=None, name=None, namespace=None, cert=None, region=None, filena
         raise
     try:
         sealed_json = create_sealed_secret_json(
-            kubctl_cmd, cert, namespace, base64keys)
+            kubctl_cmd, cert, namespace, base64keys, templatetype)
     except:
         print("Unexpected error:", sys.exc_info()[0])
         raise
