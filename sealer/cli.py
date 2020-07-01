@@ -73,7 +73,7 @@ def get_secret(secret_name, region, profile):
             return None
 
 
-def create_sealed_secret_json(kubctl_cmd, certfile, namespace, base64keys, templatetype, annotations):
+def create_sealed_secret_json(kubctl_cmd, certfile, namespace, base64keys, templatetype, annotations, labels):
     """pipe the secret first through kubectl then through kubeseal
 
     Arguments:
@@ -109,6 +109,10 @@ def create_sealed_secret_json(kubctl_cmd, certfile, namespace, base64keys, templ
         if annotations is not None:
             annotations_json = sealed_json["spec"]['template']['metadata'].setdefault('annotations', {})
             annotations_json.update(annotations)
+
+        if labels is not None:
+            labels_json = sealed_json["spec"]['template']['metadata'].setdefault('labels', {})
+            labels_json.update(labels)
 
     else:
         raise IOError(seal_process.stderr)
@@ -228,7 +232,8 @@ def base_64(json_output, base64keys):
 @click.option("--raw", help="dont fetch a secret from AWS but actually get a json directly from a file")
 @click.option("-tt", "--templatetype", help="add template type to the template in the output file")
 @click.option("-a", "--annotations", type=json.loads, help="add annotations to the metadate in the output file")
-def main(profile=None, name=None, namespace=None, cert=None, region=None, filename=None, output=None, sealedsecretname=None, keepkeys=None, transformkey=None, base64keys=None, raw=None, templatetype=None, annotations=None):
+@click.option("-l", "--labels", type=json.loads, help="add labels to the metadate in the output file")
+def main(profile=None, name=None, namespace=None, cert=None, region=None, filename=None, output=None, sealedsecretname=None, keepkeys=None, transformkey=None, base64keys=None, raw=None, templatetype=None, annotations=None, labels=None):
     """Simple tool, that fetches a secret from AWS Secret Manager and pipes it into a kubernetes sealed secret."""
     shutil.get_archive_formats()
     for i in ["kubectl", "kubeseal"]:
@@ -280,7 +285,7 @@ def main(profile=None, name=None, namespace=None, cert=None, region=None, filena
         raise
     try:
         sealed_json = create_sealed_secret_json(
-            kubctl_cmd, cert, namespace, base64keys, templatetype, annotations)
+            kubctl_cmd, cert, namespace, base64keys, templatetype, annotations, labels)
     except:
         print("Unexpected error:", sys.exc_info()[0])
         raise
