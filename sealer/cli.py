@@ -73,7 +73,7 @@ def get_secret(secret_name, region, profile):
             return None
 
 
-def create_sealed_secret_json(kubctl_cmd, certfile, namespace, base64keys, templatetype):
+def create_sealed_secret_json(kubctl_cmd, certfile, namespace, base64keys, templatetype, annotations):
     """pipe the secret first through kubectl then through kubeseal
 
     Arguments:
@@ -91,27 +91,28 @@ def create_sealed_secret_json(kubctl_cmd, certfile, namespace, base64keys, templ
         kubeseal_command.append(f"--cert {certfile}")
     if namespace:
         kubeseal_command.append(f"--namespace {namespace}")
-    process = subprocess.run(
-        " ".join(kubctl_cmd).split(" "), capture_output=True)
+    kubectl_output = subprocess.check_output(" ".join(kubctl_cmd).split(" "))
 
-    if process.returncode == 0:
-        kubectl_output = process.stdout
-        json_output = json.loads(kubectl_output)
-        if base64keys is not None:
-            base_64(json_output, base64keys)
-        seal_process = subprocess.run(" ".join(kubeseal_command).split(
-            " "), input=json.dumps(json_output), capture_output=True, text=True)
-        if seal_process.returncode == 0:
-            seal_output = seal_process.stdout
-            sealed_json = json.loads(seal_output)
+    json_output = json.loads(kubectl_output)
 
-            if templatetype is not None:
-                sealed_json["spec"]['template']['type'] = templatetype
+    if base64keys is not None:
+        base_64(json_output, base64keys)
 
-        else:
-            print(seal_process.stderr)
+    seal_process = subprocess.run(" ".join(kubeseal_command).split(
+        " "), input=json.dumps(json_output), capture_output=True, text=True)
+    if seal_process.returncode == 0:
+        seal_output = seal_process.stdout
+        sealed_json = json.loads(seal_output)
+        if templatetype is not None:
+            sealed_json["spec"]['template']['type'] = templatetype
+
+        if annotations is not None:
+            annotations_json = sealed_json["spec"]['template']['metadata'].setdefault('annotations', {})
+            annotations_json.update(annotations)
+
     else:
-        print(process.stderr)
+        raise IOError(seal_process.stderr)
+
     return sealed_json
 
 
@@ -225,8 +226,9 @@ def base_64(json_output, base64keys):
 @click.option("-t", "--transformkey", help="transforms the key before the comma to the name behind it")
 @click.option("-b", "--base64keys", help="if the data in this comma separated list of keys is already base64 decoded deploy the value directly")
 @click.option("--raw", help="dont fetch a secret from AWS but actually get a json directly from a file")
-@click.option("-tt", "--templatetype", help="add template type to the output file")
-def main(profile=None, name=None, namespace=None, cert=None, region=None, filename=None, output=None, sealedsecretname=None, keepkeys=None, transformkey=None, base64keys=None, raw=None, templatetype=None):
+@click.option("-tt", "--templatetype", help="add template type to the template in the output file")
+@click.option("-a", "--annotations", type=json.loads, help="add annotations to the metadate in the output file")
+def main(profile=None, name=None, namespace=None, cert=None, region=None, filename=None, output=None, sealedsecretname=None, keepkeys=None, transformkey=None, base64keys=None, raw=None, templatetype=None, annotations=None):
     """Simple tool, that fetches a secret from AWS Secret Manager and pipes it into a kubernetes sealed secret."""
     shutil.get_archive_formats()
     for i in ["kubectl", "kubeseal"]:
@@ -239,6 +241,7 @@ def main(profile=None, name=None, namespace=None, cert=None, region=None, filena
             print("PEM-file not found. exiting")
             sys.exit(1)
     name = name
+
     if raw is None:
         secret = get_secret(name, region, profile)
     else:
@@ -261,11 +264,9 @@ def main(profile=None, name=None, namespace=None, cert=None, region=None, filena
     else:
         kubctl_cmd.append(
             f"kubectl create secret generic {name} --dry-run -o json")
-    sealed_json = ""
 
     try:
         json_secret = json.loads(secret)
-
         if keepkeys is not None:
             keep_keys(json_secret, keepkeys)
 
@@ -279,7 +280,7 @@ def main(profile=None, name=None, namespace=None, cert=None, region=None, filena
         raise
     try:
         sealed_json = create_sealed_secret_json(
-            kubctl_cmd, cert, namespace, base64keys, templatetype)
+            kubctl_cmd, cert, namespace, base64keys, templatetype, annotations)
     except:
         print("Unexpected error:", sys.exc_info()[0])
         raise
