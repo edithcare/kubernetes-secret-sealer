@@ -88,6 +88,12 @@ Options:
                                 If you have a sealed secret from another source,
                                 you can directly create a sealed secret from it.
 
+  -tt, --templatetype           add template type to the output file. Examples: kubernetes.io/dockerconfigjson or Opaque
+ 
+  -a, --annotations JSON        add annotations to the metadate in the output file. Examples: '{"kubernetes-deploy.shopify.io/ejson-secret": "true"}'
+ 
+  -l, --labels JSON             add labels to the metadate in the output file. Examples: '{"name": "quay-io-sdase"}'
+
   --help                        Show this message and exit.
 
 ```
