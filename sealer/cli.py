@@ -1,5 +1,4 @@
-
-
+"""Simple tool, that fetches a secret from AWS Secret Manager and pipes it into a kubernetes sealed secret."""
 import base64
 import json
 import os
