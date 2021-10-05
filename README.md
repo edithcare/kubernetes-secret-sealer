@@ -52,3 +52,12 @@ kubernetes-secret-sealer \
 	-f supersecret_sealedsecret.yaml
 ```
 - then apply the secret via `kubectl apply -f supersecret_sealedsecret.yaml`
+
+## problemshooting
+
+After updating python via homebrew, the virtual environments created with pipx might be broken,
+because the symlink in the venv points to the full path for python3 are changed by Homebrew with each patch. This can be fixed via:
+
+```sh
+pipx reinstall-all
+```
